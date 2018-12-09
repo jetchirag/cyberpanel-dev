@@ -1,0 +1,9 @@
+Loaded plugins: fastestmirror, priorities
+Loading mirror speeds from cached hostfile
+ * base: ftp-srv2.kddilabs.jp
+ * epel: mirrors.aliyun.com
+ * extras: ftp-srv2.kddilabs.jp
+ * updates: ftp-srv2.kddilabs.jp
+12 packages excluded due to repository priority protections
+Package cronie-1.4.11-19.el7.x86_64 already installed and latest version
+Nothing to do

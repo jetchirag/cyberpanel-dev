@@ -1,0 +1,94 @@
+{% extends "baseTemplate/index.html" %}
+{% load i18n %}
+{% block title %}{% trans "Docker Settings - CyberPanel" %}{% endblock %}
+{% block content %}
+
+{% load static %}
+{% get_current_language as LANGUAGE_CODE %}
+<!-- Current language: {{ LANGUAGE_CODE }} -->
+
+<div class="container">
+<div id="page-title">
+   <h2>{% trans "Docker Settings" %}</h2>
+   <p>{% trans "Modify parameters for your container and creations" %}</p>
+</div>
+
+
+<div ng-controller="runContainer" class="panel">
+    <div class="panel-body">
+        <h3 class="title-hero">
+            {% trans "Settings" %} <img ng-hide="containerCreationLoading" src="{% static 'images/loading.gif' %}">
+        </h3>
+        <div class="example-box-wrapper">
+
+
+        <form name="dockerInstallForm"  action="/" class="form-horizontal bordered-row">
+            
+                <div ng-hide="installationDetailsForm" class="form-group">
+                    <label class="col-sm-3 control-label">{% trans "Allowed ports" %}</label>
+                    <div class="col-sm-1 current-pack text-center">from</div>
+                    <div class="col-sm-2">
+                        <input name="portsFrom"  type="number" class="form-control" ng-model="portsFrom" required>
+                    </div>
+                    <div class="col-sm-1 current-pack text-center">to</div>
+                    <div class="col-sm-2">
+                        <input name="portsTo"  type="number" class="form-control" ng-model="portsTo" required>
+                    </div>
+                </div>
+            
+                <div ng-hide="installationDetailsForm" class="form-group">
+                    <label class="col-sm-3 control-label"></label>
+                    <div class="col-sm-4">
+                         <button ng-disabled="websiteCreationForm.dom.$error.required || websiteCreationForm.email.$invalid" type="button" ng-click="createContainer()" class="btn btn-primary btn-lg btn-block">{% trans "Create Website" %}</button>
+
+                    </div>
+                </div>
+
+
+
+                <div ng-hide="installationProgress" class="form-group">
+                    <label class="col-sm-2 control-label"></label>
+                    <div class="col-sm-7">
+
+                            <div class="alert alert-success text-center">
+                                        <h2>{$ currentStatus $}</h2>
+                            </div>
+
+                            <div ng-hide="errorMessageBox" class="alert alert-danger">
+                                <p>{% trans "Error message:" %} {$ errorMessage $}</p>
+                            </div>
+
+                            <div ng-hide="success" class="alert alert-success">
+                                <p>{% trans "Container succesfully created." %}</p>
+                            </div>
+
+
+
+                            <div ng-hide="couldNotConnect" class="alert alert-danger">
+                                <p>{% trans "Could not connect to server. Please refresh this page." %}</p>
+                            </div>
+
+
+                    </div>
+                </div>
+
+                <div ng-hide="installationProgress" class="form-group">
+                    <label class="col-sm-3 control-label"></label>
+                    <div class="col-sm-4">
+                        <button type="button" ng-disabled="goBackDisable"  ng-click="goBack()" class="btn btn-primary btn-lg btn-block">{% trans "Go Back" %}</button>
+                    </div>
+                </div>
+
+
+            </form>
+
+        </div>
+    </div>
+</div>
+
+
+
+</div>
+
+
+{% endblock %}
