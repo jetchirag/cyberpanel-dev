@@ -42,7 +42,7 @@
 <div class="panel" ng-show="showImageList">
     <div class="panel-body">
         <h3 class="title-hero">
-            {% trans "Images" %}
+            {% trans "Images" %} <img id="imageLoading" src="/static/images/loading.gif" style="display: none;">
         </h3>
         <div class="example-box-wrapper">
             
@@ -77,7 +77,7 @@
                         
                     </td>
                     <td>
-                        <select ng-focus="loadTags()" ng-click="selectTag()" ng-model="imageTag[image.name2]" ng-options="tag for tag in tagList[image.name2]" ng-attr-id="{$ image.name2 $}" data-pageloaded='0' class="form-control ng-pristine ng-valid ng-empty ng-touched">                      
+                        <select ng-focus="loadTags($event)" ng-click="selectTag()" ng-model="imageTag[image.name2]" ng-options="tag for tag in tagList[image.name2]" ng-attr-id="{$ image.name2 $}" data-pageloaded='0' class="form-control ng-pristine ng-valid ng-empty ng-touched">                      
                         </select>
                     </td>
                     <td>
@@ -88,7 +88,7 @@
                 <tr>
                   <td>OLSWP</td>
                   <td>
-                  <select ng-focus="loadTags()" ng-click="selectTag()" ng-model="imageTag['usmannasir:olswp']" ng-options="tag for tag in tagList['usmannasir:olswp']" id="usmannasir:olswp" data-pageloaded='0' class="form-control ng-pristine ng-valid ng-empty ng-touched">                      
+                  <select ng-focus="loadTags($event)" ng-click="selectTag()" ng-model="imageTag['usmannasir:olswp']" ng-options="tag for tag in tagList['usmannasir:olswp']" id="usmannasir:olswp" data-pageloaded='0' class="form-control ng-pristine ng-valid ng-empty ng-touched">                      
                   </select>
                   </td>
                   <td>

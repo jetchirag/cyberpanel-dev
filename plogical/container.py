@@ -28,6 +28,8 @@ import requests
 client = docker.from_env()
 dockerAPI = docker.APIClient()
 
+# Todo: Add check if docker is available/running
+
 class ContainerManager:
     def __init__(self, name = None):
         self.name = name
@@ -658,6 +660,8 @@ class ContainerManager:
         try:
             currentACL = ACLManager.loadedACL(userID)
             containers = ACLManager.findAllContainers(currentACL, userID)
+            
+            print client.images.get_registry_data('nginx')
             
             try:
                 imageList = client.images.list()

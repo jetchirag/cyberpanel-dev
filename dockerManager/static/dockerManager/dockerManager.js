@@ -18,9 +18,10 @@ app.controller('dockerImages', function($scope,$http) {
         $scope.installImageSuccess = false;
     }
     
-    $scope.searchImages = function(){        
+    $scope.searchImages = function(){
         clearTimeout(delayTimer);
         delayTimer = setTimeout(function() {
+            $('#imageLoading').show();
 
             $("#imageList").attr("pointer-events","none");
 
@@ -51,9 +52,11 @@ app.controller('dockerImages', function($scope,$http) {
                 }
 
                 $("#imageList").removeAttr("pointer-events");
+                $('#imageLoading').hide();
 
             }
             function cantLoadInitialDatas(response) {
+                $('#imageLoading').hide();
                 $("#imageList").removeAttr("pointer-events");
                 new PNotify({
                     title: 'Failed to complete request',
@@ -147,7 +150,7 @@ app.controller('dockerImages', function($scope,$http) {
         }
     }
   
-    $scope.loadTags = function(){
+    $scope.loadTags = function(event){
         var pagesloaded = $(event.target).data('pageloaded');
         var image = event.target.id;
         
@@ -352,6 +355,7 @@ app.controller('listContainers', function($scope,$http) {
                 history: false
             }
         })).get().on('pnotify.confirm', function() {
+            $('#imageLoading').show();
             url = "/docker/delContainer";
 
             var data = {name: name, unlisted: unlisted};
@@ -376,9 +380,10 @@ app.controller('listContainers', function($scope,$http) {
                     $("#listFail").fadeIn();
                     $scope.errorMessage = response.data.error_message;
                 }
+                $('#imageLoading').hide();
             }
             function cantLoadInitialData(response) {
-                console.log("not good");
+                $('#imageLoading').hide();
                 $scope.logs = "Error loading log";
             }
         })
@@ -569,6 +574,7 @@ app.controller('viewContainer', function($scope,$http) {
                 history: false
             }
         })).get().on('pnotify.confirm', function() {
+          $('#actionLoading').show();
             
           url = "/docker/delContainer";
             var data = {name: $scope.cName, unlisted: false};
@@ -597,12 +603,14 @@ app.controller('viewContainer', function($scope,$http) {
                     });
 
                 }
+                $('#actionLoading').hide();
             }
             function cantLoadInitialData(response) {
                 PNotify.error({
                   title: 'Unable to complete request',
                   text: "Problem in connecting to server"
                 });
+                $('#actionLoading').hide();
             }
     })
     }
@@ -642,6 +650,7 @@ app.controller('viewContainer', function($scope,$http) {
     }
     
     $scope.saveSettings = function(){
+        $('#containerSettingLoading').show();
         url = "/docker/saveContainerSettings";
         $scope.savingSettings = true;
         var data = {name: $scope.cName, memory:$scope.memory, startOnReboot: $scope.startOnReboot};
@@ -669,6 +678,7 @@ app.controller('viewContainer', function($scope,$http) {
                 });
 
             }
+            $('#containerSettingLoading').hide();
             $scope.savingSettings = false;
         }
         function cantLoadInitialData(response) {
@@ -677,6 +687,7 @@ app.controller('viewContainer', function($scope,$http) {
               text: "Problem in connecting to server",
               type: 'error'
             });
+            $('#containerSettingLoading').hide();
             $scope.savingSettings = false;
         }
         
@@ -690,6 +701,7 @@ app.controller('viewContainer', function($scope,$http) {
     }
     
     $scope.cAction = function(action){
+        $('#actionLoading').show();
         console.log($scope.cName)
         url = "/docker/doContainerAction";
         var data = {name: $scope.cName, action: action};
@@ -723,12 +735,14 @@ app.controller('viewContainer', function($scope,$http) {
                 });
 
             }
+            $('#actionLoading').hide();
         }
         function cantLoadInitialData(response) {
             PNotify.error({
               title: 'Unable to complete request',
               text: "Problem in connecting to server"
             });
+            $('#actionLoading').hide();
         }
         
     }
@@ -773,6 +787,7 @@ app.controller('viewContainer', function($scope,$http) {
 /* Java script code for docker image management */
 app.controller('manageImages', function($scope,$http) {
    $scope.getHistory = function(counter){
+       $('#imageLoading').show();
        var name = $("#"+counter).val()
        
        url = "/docker/getImageHistory";
@@ -803,6 +818,7 @@ app.controller('manageImages', function($scope,$http) {
                     type: 'error'
                 });
             }
+            $('#imageLoading').hide();
         }
         function cantLoadInitialData(response) {
             new PNotify({
@@ -810,6 +826,7 @@ app.controller('manageImages', function($scope,$http) {
                 text: response.data.error_message,
                 type: 'error'
             });
+            $('#imageLoading').hide();
         }
    }
    
@@ -831,6 +848,7 @@ app.controller('manageImages', function($scope,$http) {
                 history: false
             }
         })).get().on('pnotify.confirm', function() {
+        $('#imageLoading').show();
            
        if (counter == '0') {
            var name = 0;
@@ -870,6 +888,7 @@ app.controller('manageImages', function($scope,$http) {
                     type: 'error'
                 });
             }
+            $('#imageLoading').hide();
         }
         function cantLoadInitialData(response) {
             new PNotify({
@@ -877,6 +896,7 @@ app.controller('manageImages', function($scope,$http) {
                 text: response.data.error_message,
                 type: 'error'
             });
+            $('#imageLoading').hide();
         }
            
         })
