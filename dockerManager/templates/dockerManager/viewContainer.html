@@ -11,8 +11,8 @@
 <div class="container" ng-controller="viewContainer">
 
     <div id="page-title" ng-init="cName='{{name}}'">
-       <h2 id="domainNamePage">{% trans "Container Home" %}</h2>
-       <p>{% trans "On this page you can manage individual containers." %}</p>
+       <h2 id="domainNamePage">{% trans "Manage Container" %}</h2>
+       <p>{% trans "Currently managing: " %} {{ name }}</p>
     </div>
     
     
@@ -34,6 +34,7 @@
                                             <div class="example-box-wrapper">
                                             <h3 class="title-hero">
                                                 {% trans "Memory Usage" %}
+                                                <img id="infoLoading" src="/static/images/loading.gif" style="display: none;">
                                             </h3>
                                                 <div class="progressbar" data-value="{{ memoryUsage  }}">
                                                     <div class="progressbar-value bg-primary">
@@ -67,16 +68,22 @@
                                     <div class="example-box-wrapper">
                                         {% trans "Container ID" %}: {{cid}}
                                         <br>
-                                        {% trans "Image" %}: {{image}}
+                                        {% trans "Image" %}: {{image}} 
+                                        <span ng-show="'{{image}}' == 'unknown:unknown'" title="Actions involving container recreation cannot be executed">
+                                            <i class="fa fa-warning"></i>
+                                        </span>
                                         <br>
+                                        {% if ports %}
                                         {% trans "Ports" %}: <br>                                        
                                         {% for iport, eport  in ports.items %}
                                             {{iport}} {% trans "to" %} {{eport}}<br>
                                         {% endfor %}
+                                        {% endif %}
 
                                     </div>
                                     
                                     <button class="btn btn-warning" data-toggle="modal" data-target="#settings"><i class="fa fa-gear"></i> Settings</button>
+                                    <button class="btn btn-warning" ng-click="recreate()"><i class="fa fa-refresh"></i> Recreate</button>
 
                                 </div>
                               </div>
@@ -195,6 +202,49 @@
                         </div>
                     </div>
                 </div>
+              
+              <hr>
+              <div ng-hide="installationDetailsForm" class="form-group">
+                    <label class="col-sm-3 control-label">{% trans "Confirmation" %}</label>
+                    <div class="col-sm-9">
+                        <div class="checkbox">
+                            <label>
+                                <input ng-model="envConfirmation" type="checkbox">
+                                Editing ENV will recreate container <i class="fa fa-warning" title="If you tick this checkbox, your container will be recreated with saved information. Data saved inside container will be deleted (Not avaialble for container created outside of cyberpanel)"></i>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            
+            <span ng-init="envList = {}"></span>
+            {% for env, value in envList.items %}
+            
+                <span ng-init="envList[{{ forloop.counter0 }}] =  {'name':'{{env}}' , 'value':'{{value}}'} "></span>
+            
+            {% endfor %}
+              
+              <div ng-repeat="env in envList track by $index">
+                
+              <div ng-hide="installationDetailsForm"  class="form-group">
+                    <label class="col-sm-3 control-label">
+                        <div ng-show="$first">
+                        {% trans "ENV" %}
+                        </div>
+                    </label>
+                    <div class="col-sm-2">
+                        <input name="$index" type="text" class="form-control" ng-model="envList[$index].name" required>
+                    </div>
+                    <div class="col-sm-4">
+                        <input name="$index"  type="text" class="form-control" ng-model="envList[$index].value" required>
+                    </div>
+                </div>
+                
+            </div>
+              
+              <div class="col-md-offset-3">
+                <button type="button" class="btn btn-info" ng-click="addEnvField()">Add more</button>
+            </div><br>
+              
             </form>
           
       </div>

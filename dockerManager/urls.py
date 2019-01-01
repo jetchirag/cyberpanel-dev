@@ -23,5 +23,6 @@ urlpatterns = [
     url(r'^manageImages', views.manageImages, name='manageImages'),
     url(r'^getImageHistory', views.getImageHistory, name='getImageHistory'),
     url(r'^removeImage', views.removeImage, name='removeImage'),
+    url(r'^recreateContainer', views.recreateContainer, name='recreateContainer'),
     url(r'^view/(?P<name>(.*))$', views.viewContainer, name='viewContainer'),
 ]

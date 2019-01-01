@@ -83,6 +83,53 @@
             
             {% endfor %}
             
+            
+            <!--{% for env, value in envList.items %}
+            
+                <div ng-hide="installationDetailsForm" class="form-group">
+                    <label class="col-sm-3 control-label">
+                    {% if forloop.first %}
+                        {% trans "ENV" %}
+                    {% endif %}
+                    </label>
+                    <div class="col-sm-2" ng-init="envName['{{env}}']='{{ env }}' ">
+                        <input name="envName['{{env}}']" type="text" class="form-control" ng-model="envName['{{env}}']" required>
+                    </div>
+                    <div class="col-sm-4" ng-init="envValue['{{env}}']='{{ value }}' ">
+                        <input name="envValue['{{env}}']"  type="text" class="form-control" ng-model="envValue['{{env}}']" required>
+                    </div>
+                </div>
+            
+            {% endfor %}-->
+            
+            {% for env, value in envList.items %}
+            
+                <span ng-init="envList[{{ forloop.counter0 }}] =  {'name':'{{env}}' , 'value':'{{value}}'} "></span>
+            
+            {% endfor %}
+            
+            <div ng-repeat="env in envList track by $index">
+                
+              <div ng-hide="installationDetailsForm"  class="form-group">
+                    <label class="col-sm-3 control-label">
+                        <div ng-show="$first">
+                        {% trans "ENV" %}
+                        </div>
+                    </label>
+                    <div class="col-sm-2">
+                        <input name="$index" type="text" class="form-control" ng-model="envList[$index].name" required>
+                    </div>
+                    <div class="col-sm-4">
+                        <input name="$index"  type="text" class="form-control" ng-model="envList[$index].value" required>
+                    </div>
+                </div>
+                
+            </div>
+
+            
+            <div class="col-md-offset-3">
+                <button type="button" class="btn btn-info" ng-click="addEnvField()">Add more</button>
+            </div><br>
                 <div ng-hide="installationDetailsForm" class="form-group">
                     <label class="col-sm-3 control-label"></label>
                     <div class="col-sm-4">

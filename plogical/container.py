@@ -39,11 +39,12 @@ class ContainerManager:
             currentACL = ACLManager.loadedACL(userID)
             if ACLManager.currentContextPermission(currentACL, 'createContainer') == 0:
                 return ACLManager.loadError()
-
+            
             adminNames = ACLManager.loadAllUsers(userID)
             tag = request.GET.get('tag')
             image = request.GET.get('image')
-            
+#             Todo: Add check if url is correct i.e. query exists
+            print "name:" + tag
             tag = tag.split(" (")[0]
             
             if "/" in image:
@@ -60,8 +61,17 @@ class ContainerManager:
                                                                   'image':image,
                                                                    'tag':tag})                
                 
+            envList = {};
+            if 'Env' in inspectImage['Config']:
+                for item in inspectImage['Config']['Env']:
+                    if '=' in item:
+                        splitedItem = item.split('=',1)
+                        print splitedItem
+                        envList[splitedItem[0]] = splitedItem[1]
+                    else:
+                        envList[item] = ""
+                        
             portConfig = {};
-            
             if 'ExposedPorts' in inspectImage['Config']:
                 for item in inspectImage['Config']['ExposedPorts']:
                     portDef = item.split('/')
@@ -71,7 +81,7 @@ class ContainerManager:
             if image is None or image is '' or tag is None or tag is '':
                 return redirect(loadImages)
             
-            Data = {"ownerList": adminNames, "image":image, "name":name, "tag":tag, "portConfig": portConfig}
+            Data = {"ownerList": adminNames, "image":image, "name":name, "tag":tag, "portConfig": portConfig, "envList":envList}
         
             return render(request, 'dockerManager/runContainer.html', Data)
 
@@ -92,8 +102,10 @@ class ContainerManager:
         data['image'] = con.image + ":" + con.tag
         data['ports'] = json.loads(con.ports)
         data['cid'] = con.cid
+        data['envList'] = json.loads(con.env)
+        print data['envList']
         
-        stats = container.stats(decode=True, stream=False)
+        stats = container.stats(decode=False, stream=False)
         logs = container.logs(stream=True)
         
         data['status'] = container.status
@@ -106,12 +118,22 @@ class ContainerManager:
             data['restartPolicy'] = "No"
         
         if 'usage' in stats['memory_stats']:
-            # Calculate Usage
+            # Calculate Usage 
+            # Source: https://github.com/docker/docker/blob/28a7577a029780e4533faf3d057ec9f6c7a10948/api/client/stats.go#L309
             data['memoryUsage'] = (stats['memory_stats']['usage'] / stats['memory_stats']['limit']) * 100
-            data['cpuUsage'] = 2;
+            
+            cpu_count = len(stats["cpu_stats"]["cpu_usage"]["percpu_usage"])
+            data['cpuUsage'] = 0.0
+            cpu_delta = float(stats["cpu_stats"]["cpu_usage"]["total_usage"]) - \
+                        float(stats["precpu_stats"]["cpu_usage"]["total_usage"])
+            system_delta = float(stats["cpu_stats"]["system_cpu_usage"]) - \
+                           float(stats["precpu_stats"]["system_cpu_usage"])
+            if system_delta > 0.0:
+                data['cpuUsage'] = round(cpu_delta / system_delta * 100.0 * cpu_count, 3)
         else:
             data['memoryUsage'] = 0
             data['cpuUsage'] = 0;
+            
         return render(request, 'dockerManager/viewContainer.html', data)
         
     def listContainers(self, request = None, userID = None, data = None):
@@ -123,11 +145,6 @@ class ContainerManager:
             containersList = []
             showUnlistedContainer = True
             
-#             for container in allContainers:
-#                 containersList.append(container.name)
-            
-#             unlistedContainers = list(set(containersList) - set(containers))
-
             # TODO: Add condition to show unlisted Containers only if user has admin level access
 
             unlistedContainers = []
@@ -194,11 +211,18 @@ class ContainerManager:
             tag = data['tag']
             websiteOwner = data['websiteOwner']
             memory = data['memory']
+            envList = data['envList']
             
             inspectImage =  dockerAPI.inspect_image(image+":"+tag)
-            portConfig = {};
+            portConfig = {}
             
-            # Todo: Add pre-creation test if name is available
+            # Formatting envList for usage
+            envDict = {}
+            for key, value in envList.iteritems():
+                # Todo: Add proper filters and checks for each variable 
+                if (value['name'] != '') or (value['value'] != ''):
+                    envDict[value['name']] = value['value']
+            print envDict
             
             if 'ExposedPorts' in inspectImage['Config']:
                 for item in inspectImage['Config']['ExposedPorts']:
@@ -216,10 +240,10 @@ class ContainerManager:
             containerArgs = {'image':image+":"+tag,
                             'detach':True,
                             'name':name,
-                            'ports':portConfig}
+                            'ports':portConfig,
+                            'environment':envDict}
             
-            if (memory != '0'):
-                containerArgs['mem_limit'] = memory * 1048576; # Converts MB to bytes
+            containerArgs['mem_limit'] = memory * 1048576; # Converts MB to bytes ( 0 * x = 0 for unlimited memory)
 
             container = client.containers.run(**containerArgs)
             
@@ -229,6 +253,7 @@ class ContainerManager:
                             image=image,
                             memory=memory,
                             ports=json.dumps(portConfig),
+                            env=json.dumps(envDict),
                             cid=container.id)
             
             con.save()
@@ -282,12 +307,15 @@ class ContainerManager:
             json_data = json.dumps(data_ret)
             return HttpResponse(json_data)      
         
-    def submitContainerDeletion(self, userID = None, data = None):
+    def submitContainerDeletion(self, userID = None, data = None, called = False):
         try:
 
             currentACL = ACLManager.loadedACL(userID)
             if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
-                return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
+                if called:
+                    return 'Permission error'
+                else:
+                    return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
 
             name = data['name']
             unlisted = data['unlisted']
@@ -299,9 +327,12 @@ class ContainerManager:
             try:
                 container = client.containers.get(name)
             except docker.errors.NotFound as err:
-                data_ret = {'delContainerStatus': 0, 'error_message': 'Container does not exist'}
-                json_data = json.dumps(data_ret)
-                return HttpResponse(json_data)                
+                if called:
+                    return 'Container does not exist'
+                else:
+                    data_ret = {'delContainerStatus': 0, 'error_message': 'Container does not exist'}
+                    json_data = json.dumps(data_ret)
+                    return HttpResponse(json_data)                
             
             try:
                 container.stop() # Stop container
@@ -316,21 +347,30 @@ class ContainerManager:
                 json_data = json.dumps(data_ret)
                 return HttpResponse(json_data)                
             except:
-                data_ret = {'delContainerStatus': 0, 'error_message': 'Unknown error'}
+                if called:
+                    return "Unknown"
+                else:
+                    data_ret = {'delContainerStatus': 0, 'error_message': 'Unknown error'}
+                    json_data = json.dumps(data_ret)
+                    return HttpResponse(json_data)
+                
+            if not unlisted and not called:
+                containerOBJ.delete()            
+                
+            if called:
+                return 0
+            else:
+                data_ret = {'delContainerStatus': 1, 'error_message': "None"}
                 json_data = json.dumps(data_ret)
                 return HttpResponse(json_data)
-                
-            if not unlisted:
-                containerOBJ.delete()            
-
-            data_ret = {'delContainerStatus': 1, 'error_message': "None"}
-            json_data = json.dumps(data_ret)
-            return HttpResponse(json_data)
 
         except BaseException, msg:
-            data_ret = {'delContainerStatus': 0, 'error_message': str(msg)}
-            json_data = json.dumps(data_ret)
-            return HttpResponse(json_data)
+            if called:
+                return str(msg)
+            else:
+                data_ret = {'delContainerStatus': 0, 'error_message': str(msg)}
+                json_data = json.dumps(data_ret)
+                return HttpResponse(json_data)
 
     def getContainerList(self, userID = None, data = None):
         try:
@@ -477,59 +517,7 @@ class ContainerManager:
             data_ret = {'containerStatus': 0, 'error_message': str(msg)}
             json_data = json.dumps(data_ret)
             return HttpResponse(json_data)  
-            
-    def saveContainerSettings(self, userID = None, data = None):
-        try:
-
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
-                return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
-
-            name = data['name']
-            memory = data['memory']
-            startOnReboot = data['startOnReboot']
-            
-            if startOnReboot == True:
-                startOnReboot = 1
-                rPolicy = {"Name": "always"}
-            else:
-                startOnReboot = 0
-                rPolicy = {}
-            
-            try:
-                container = client.containers.get(name)
-            except docker.errors.NotFound as err:
-                data_ret = {'saveSettingsStatus': 0, 'error_message': 'Container does not exist'}
-                json_data = json.dumps(data_ret)
-                return HttpResponse(json_data)
-            except:
-                data_ret = {'saveSettingsStatus': 0, 'error_message': 'Unknown'}
-                json_data = json.dumps(data_ret)
-                return HttpResponse(json_data)
-            
-            try:
-                container.update(mem_limit=memory * 1048576,
-                                restart_policy = rPolicy)
-            except docker.errors.APIError as err:
-                data_ret = {'saveSettingsStatus': 0, 'error_message': str(err)}
-                json_data = json.dumps(data_ret)
-                return HttpResponse(json_data)    
-            
-            con = Containers.objects.get(name=name)
-            con.memory = memory
-            con.startOnReboot = startOnReboot
-            con.save()
-            
-            data_ret = {'saveSettingsStatus': 1, 'error_message': 'None'}
-            json_data = json.dumps(data_ret)
-            return HttpResponse(json_data)
-
-        except BaseException, msg:
-            data_ret = {'saveSettingsStatus': 0, 'error_message': str(msg)}
-            json_data = json.dumps(data_ret)
-            return HttpResponse(json_data)            
-        
-            
+                        
     def getContainerTop(self, userID = None, data = None):
         try:
 
@@ -660,9 +648,7 @@ class ContainerManager:
         try:
             currentACL = ACLManager.loadedACL(userID)
             containers = ACLManager.findAllContainers(currentACL, userID)
-            
-            print client.images.get_registry_data('nginx')
-            
+                        
             try:
                 imageList = client.images.list()
             except docker.errors.APIError as err:
@@ -749,3 +735,168 @@ class ContainerManager:
             data_ret = {'removeImageStatus': 0, 'error_message': str(msg)}
             json_data = json.dumps(data_ret)
             return HttpResponse(json_data)        
+        
+    # Internal function for recreating containers
+    
+    def doRecreateContainer(self, userID, data, con):
+        try:
+            name = data['name']
+            unlisted = data['unlisted'] # Pass this as 1 if image is not known for container
+            image = data['image']
+            tag = data['tag']
+            env = data['env']
+            port = data['ports']
+            memory = data['memory']
+            
+            if image == 'unknown':
+                return "Image name not known"
+            # Call container delete function
+            delStatus = self.submitContainerDeletion(userID, data, True)
+            if delStatus != 0:
+                return delStatus
+                
+            print env
+            containerArgs = {'image':image+":"+tag,
+                            'detach':True,
+                            'name':name,
+                            'ports':port,
+                            'environment':env,
+                            'mem_limit': memory * 1048576}
+                        
+            if con.startOnReboot == 1:
+                containerArgs['restart_policy'] = {"Name": "always"}
+            
+            container = client.containers.run(**containerArgs)
+            con.cid = container.id
+            con.save()
+            
+            return 0
+        except BaseException, msg:
+            return str(msg)
+        
+    def saveContainerSettings(self, userID = None, data = None):
+        try:
+
+            currentACL = ACLManager.loadedACL(userID)
+            if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
+                return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
+
+            name = data['name']
+            memory = data['memory']
+            startOnReboot = data['startOnReboot']
+            envList = data['envList']
+            
+            if startOnReboot == True:
+                startOnReboot = 1
+                rPolicy = {"Name": "always"}
+            else:
+                startOnReboot = 0
+                rPolicy = {}
+            
+            try:
+                container = client.containers.get(name)
+            except docker.errors.NotFound as err:
+                data_ret = {'saveSettingsStatus': 0, 'error_message': 'Container does not exist'}
+                json_data = json.dumps(data_ret)
+                return HttpResponse(json_data)
+            except:
+                data_ret = {'saveSettingsStatus': 0, 'error_message': 'Unknown'}
+                json_data = json.dumps(data_ret)
+                return HttpResponse(json_data)
+            
+            try:
+                container.update(mem_limit=memory * 1048576,
+                                restart_policy = rPolicy)
+            except docker.errors.APIError as err:
+                data_ret = {'saveSettingsStatus': 0, 'error_message': str(err)}
+                json_data = json.dumps(data_ret)
+                return HttpResponse(json_data)    
+            
+            con = Containers.objects.get(name=name)
+            con.memory = memory
+            con.startOnReboot = startOnReboot
+            
+            if 'envConfirmation' in data and data['envConfirmation']:
+                # Formatting envList for usage
+                envDict = {}
+                for key, value in envList.iteritems():
+                    # Todo: Add proper filters and checks for each variable 
+                    if (value['name'] != '') or (value['value'] != ''):
+                        envDict[value['name']] = value['value']
+                
+                print envDict
+                # Prepare data for recreate function
+                data = {
+                    'name': name,
+                    'unlisted': 0, 
+                    'image': con.image,
+                    'tag': con.tag,
+                    'env': envDict,
+                    'ports': json.loads(con.ports), # No filter needed now as its ports are filtered when adding to database
+                    'memory': con.memory
+                }
+
+                recreateStatus = self.doRecreateContainer(userID, data, con)
+                if recreateStatus != 0:
+                    data_ret = {'saveSettingsStatus': 0, 'error_message': str(recreateStatus)}
+                    json_data = json.dumps(data_ret)
+                    return HttpResponse(json_data)    
+                
+                con.env = json.dumps(envDict)
+                con.save()                       
+                
+            data_ret = {'saveSettingsStatus': 1, 'error_message': 'None'}
+            json_data = json.dumps(data_ret)
+            return HttpResponse(json_data)
+
+        except BaseException, msg:
+            data_ret = {'saveSettingsStatus': 0, 'error_message': str(msg)}
+            json_data = json.dumps(data_ret)
+            return HttpResponse(json_data)            
+                
+    def recreateContainer(self, userID = None, data = None):
+        try:
+            currentACL = ACLManager.loadedACL(userID)
+            if ACLManager.currentContextPermission(currentACL, 'recreateContainer') == 0:
+                return ACLManager.loadErrorJson('recreateContainerStatus', 0)
+
+            name = data['name']
+            
+            try:
+                container = client.containers.get(name)
+            except docker.errors.NotFound as err:
+                data_ret = {'recreateContainerStatus': 0, 'error_message': 'Container does not exist'}
+                json_data = json.dumps(data_ret)
+                return HttpResponse(json_data)
+            except:
+                data_ret = {'recreateContainerStatus': 0, 'error_message': 'Unknown'}
+                json_data = json.dumps(data_ret)
+                return HttpResponse(json_data)
+                        
+            con = Containers.objects.get(name=name)
+            
+            # Prepare data for recreate function
+            data = {
+                'name': name,
+                'unlisted': 0,
+                'image': con.image,
+                'tag': con.tag,
+                'env': json.loads(con.env),
+                'ports': json.loads(con.ports), # No filter needed now as its ports are filtered when adding to database
+                'memory': con.memory
+            }
+            
+            recreateStatus = self.doRecreateContainer(userID, data, con)
+            if recreateStatus != 0:
+                data_ret = {'recreateContainerStatus': 0, 'error_message': str(recreateStatus)}
+                json_data = json.dumps(data_ret)
+                return HttpResponse(json_data)    
+            
+            data_ret = {'recreateContainerStatus': 1, 'error_message': 'None'}
+            json_data = json.dumps(data_ret)
+            return HttpResponse(json_data)
+
+        except BaseException, msg:
+            data_ret = {'recreateContainerStatus': 0, 'error_message': str(msg)}
+            json_data = json.dumps(data_ret)
+            return HttpResponse(json_data)  

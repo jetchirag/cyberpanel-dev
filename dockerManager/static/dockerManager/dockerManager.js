@@ -187,6 +187,11 @@ app.controller('runContainer', function($scope,$http) {
     $scope.success = true;
     $scope.couldNotConnect = true;
     $scope.goBackDisable = true;
+    
+    $scope.addEnvField = function() {
+        var countEnv = Object.keys($scope.envList).length;
+        $scope.envList[countEnv+1] = {'name':'', 'value':''};
+    }
 
     var statusFile;
 
@@ -211,14 +216,17 @@ app.controller('runContainer', function($scope,$http) {
         var tag = $scope.tag;
         var memory = $scope.memory;
         var websiteOwner = $scope.websiteOwner;
-        var image = $scope.image
+        var image = $scope.image;
+        var numberOfEnv = Object.keys($scope.envList).length;
 
         var data = {
             name: name,
             tag: tag,
             memory: memory,
             websiteOwner: websiteOwner,
-            image: image
+            image: image,
+            envList: $scope.envList
+            
         };
         
         $.each($scope.portType, function( port, protocol ) {
@@ -516,6 +524,69 @@ app.controller('viewContainer', function($scope,$http) {
     $scope.savingSettings = false;
     $scope.loadingTop = false;
     
+    $scope.recreate = function() {
+        (new PNotify({
+            title: 'Confirmation Needed',
+            text: 'Are you sure?',
+            icon: 'fa fa-question-circle',
+            hide: false,
+            confirm: {
+                confirm: true
+            },
+            buttons: {
+                closer: false,
+                sticker: false
+            },
+            history: {
+                history: false
+            }
+        })).get().on('pnotify.confirm', function() {
+          $('#infoLoading').show();
+            
+          url = "/docker/recreateContainer";
+            var data = {name: $scope.cName};
+            var config = {
+                headers : {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            };
+
+            $http.post(url, data,config).then(ListInitialData, cantLoadInitialData);
+            function ListInitialData(response) {
+                if (response.data.recreateContainerStatus === 1) {
+                    new PNotify({
+                        title: 'Action completed!',
+                        text: 'Redirecting...',
+                        type: 'success'
+                    });
+                    location.reload();
+                }
+                else
+                {
+                    new PNotify({
+                        title: 'Unable to complete request',
+                        text: response.data.error_message,
+                        type: 'error'
+                    });
+
+                }
+                $('#infoLoading').hide();
+            }
+            function cantLoadInitialData(response) {
+                PNotify.error({
+                  title: 'Unable to complete request',
+                  text: "Problem in connecting to server"
+                });
+                $('#actionLoading').hide();
+            }
+    })
+    }
+    
+    $scope.addEnvField = function() {
+        var countEnv = Object.keys($scope.envList).length;
+        $scope.envList[countEnv+1] = {'name':'', 'value':''};
+    }
+    
     $scope.showTop = function(){
         $scope.topHead = [];
         $scope.topProcesses = [];
@@ -653,7 +724,15 @@ app.controller('viewContainer', function($scope,$http) {
         $('#containerSettingLoading').show();
         url = "/docker/saveContainerSettings";
         $scope.savingSettings = true;
-        var data = {name: $scope.cName, memory:$scope.memory, startOnReboot: $scope.startOnReboot};
+        
+        var data = {
+            name: $scope.cName,
+            memory:$scope.memory,
+            startOnReboot: $scope.startOnReboot,
+            envConfirmation: $scope.envConfirmation,
+            envList: $scope.envList
+        };
+        
         console.log(data)
         var config = {
             headers : {
@@ -664,10 +743,19 @@ app.controller('viewContainer', function($scope,$http) {
         $http.post(url, data,config).then(ListInitialData, cantLoadInitialData);
         function ListInitialData(response) {
             if (response.data.saveSettingsStatus === 1) {
-                new PNotify({
-                    title: 'Settings Saved',
-                    type: 'success'
-                });
+                if ($scope.envConfirmation){
+                    new PNotify({
+                        title: 'Done. Redirecting...',
+                        type: 'success'
+                    });
+                    location.reload();
+                }
+                else{
+                    new PNotify({
+                        title: 'Settings Saved',
+                        type: 'success'
+                    });   
+                }                
             }
             else
             {

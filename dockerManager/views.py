@@ -110,6 +110,19 @@ def delContainer(request):
     except KeyError:
         return redirect(loadLoginPage)
     
+    
+def recreateContainer(request): 
+    try:
+        userID = request.session['userID']
+
+        cm = ContainerManager()
+        coreResult = cm.recreateContainer(userID, json.loads(request.body))
+
+        return coreResult
+
+    except KeyError:
+        return redirect(loadLoginPage)    
+    
 def runContainer(request):
     try:
         userID = request.session['userID']
