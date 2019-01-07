@@ -589,7 +589,6 @@ app.controller('viewContainer', function($scope,$http) {
                         text: response.data.error_message,
                         type: 'error'
                     });
-
                 }
                 $('#actionLoading').hide();
             }

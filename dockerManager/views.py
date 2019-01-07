@@ -5,19 +5,17 @@ from django.shortcuts import render,redirect
 from loginSystem.models import Administrator
 from loginSystem.views import loadLoginPage
 from django.http import HttpResponse
+from plogical.container import ContainerManager
+from dockerManager.pluginManager import pluginManager
+from decorators import preDockerRun
+from plogical.acl import ACLManager
 import json
 import requests
 import docker
-from plogical.container import ContainerManager
-from dockerManager.pluginManager import pluginManager
-from django.utils.decorators import decorator_from_middleware
-from decorators import preDockerRun
-from plogical.acl import ACLManager
 
 # Use default socket to connect
 client = docker.from_env()
 # Create your views here.
-
 
 # This function checks if user has admin permissions
 def dockerPermission(request, userID, context):
@@ -63,18 +61,7 @@ def installDocker(request):
         return coreResult
 
     except KeyError:
-        return redirect(loadLoginPage)       
-    
-# @preDockerRun      
-# def loadImages(request):
-#     try:
-#         userID = request.session['userID']
-#         perm = dockerPermission(request, userID, 'loadDockerHome')
-#         if perm: return perm
-#         admin = Administrator.objects.get(pk=userID)        
-#         return render(request,'dockerManager/images.html',{"type":admin.type})
-#     except KeyError:
-#         return redirect(loadLoginPage)     
+        return redirect(loadLoginPage)
 
 @preDockerRun    
 def installImage(request):
