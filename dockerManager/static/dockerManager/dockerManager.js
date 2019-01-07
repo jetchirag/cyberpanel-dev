@@ -1,83 +1,9 @@
-/* Java script code for docker management */
-var delayTimer = null;
-
-app.controller('dockerImages', function($scope,$http) {
-    $scope.tagList = [];
-    $scope.imageTag = {};
-    $("#errorMessage").hide();
-    $scope.showInstallImage = true;
-    $scope.showImageList = true;
-    $scope.installImageError = false;
-    $scope.installImageSuccess = false;
-    $scope.installImageLoading = false;
-    
-    $scope.cancelInstall = function(){
-        $scope.showInstallImage = false;
-        $scope.showImageList = true;
-        $scope.installImageError = false;
-        $scope.installImageSuccess = false;
-    }
-    
-    $scope.searchImages = function(){
-        clearTimeout(delayTimer);
-        delayTimer = setTimeout(function() {
-            $('#imageLoading').show();
-
-            $("#imageList").attr("pointer-events","none");
-
-            url = "/docker/searchImage";
-            var data = {
-                string: $scope.searchString
-            };
-            var config = {
-                headers : {
-                    'X-CSRFToken': getCookie('csrftoken')
-                }
-            };
-
-            $http.post(url, data,config).then(ListInitialDatas, cantLoadInitialDatas);
-
-            function ListInitialDatas(response) {
-                if (response.data.searchImageStatus === 1)
-                {
-                    $scope.images = response.data.matches;
-                    console.log($scope.images)
-                }
-                else{
-                    new PNotify({
-                        title: 'Failed to complete request',
-                        text: response.data.error,
-                        type: 'error'
-                    });
-                }
-
-                $("#imageList").removeAttr("pointer-events");
-                $('#imageLoading').hide();
-
-            }
-            function cantLoadInitialDatas(response) {
-                $('#imageLoading').hide();
-                $("#imageList").removeAttr("pointer-events");
-                new PNotify({
-                    title: 'Failed to complete request',
-                    type: 'error'
-                });
-            }
-        }, 500);
-    }
-    
-    $scope.installImage = function(image, tag){
-        $("#installImagePanel button").attr("disabled", "disabled");
-        $scope.installImageError = false;
-        $scope.installImageLoading = true;
-        $scope.installImageSuccess = false;
-        url = "/docker/installImage";
-
-        var data = {
-            image: image,
-            tag: tag
-        };
-
+app.controller('installDocker', function($scope,$http) {
+    $scope.installDockerStatus = true;
+    $scope.installDocker = function(){
+        $scope.installDockerStatus = false;
+        url = "/docker/installDocker";
+        var data = {};
         var config = {
             headers : {
                 'X-CSRFToken': getCookie('csrftoken')
@@ -86,95 +12,42 @@ app.controller('dockerImages', function($scope,$http) {
 
         $http.post(url, data,config).then(ListInitialDatas, cantLoadInitialDatas);
 
-
         function ListInitialDatas(response) {
-            $("#installImagePanel button").removeAttr("disabled");
-            $scope.installImageLoading = false;
-
-            if (response.data.installImageStatus === 1)
+            if (response.data.installDockerStatus === 1)
             {
-                $scope.installImageError = false;
-                $scope.installImageSuccess = true;
+                new PNotify({
+                    title: 'Docker installed',
+                    text: 'Reloading...',
+                    type: 'success'
+                });
+                location.reload();
             }
             else{
-                $scope.installImageError = true;
-                $scope.installImageSuccess = false;
-                $scope.imageErrorMessage = response.data.error_message;
+                new PNotify({
+                    title: 'Failed to complete request',
+                    text: response.data.error,
+                    type: 'error'
+                });
             }
-
-
+            $scope.installDockerStatus = true;
 
         }
         function cantLoadInitialDatas(response) {
-            $scope.installImageLoading = false;
-            $("#installImagePanel button").removeAttr("disabled");
-            $scope.installImageError = true;
-            $scope.installImageSuccess = false;
-            $scope.installImageError = "Failed to load";
-        }
-        
-    }
-    
-    function populateTagList(image, page){
-        url = "/docker/getTags?image="+image+"&page="+page+1;
-
-
-        var params = {};
-
-        var config = {
-            headers : {
-                'X-CSRFToken': getCookie('csrftoken')
-                }
-            };
-
-
-        $http.get(url, params, config).then(function(response){
-            console.log(response)
-            $scope.tagList[image].splice(-1,1);
-            $scope.tagList[image] = $scope.tagList[image].concat(response.data);
-            
-            if (response.data.length !== 0){
-                $scope.tagList[image].push("Load more");                
-            }
-        });
-    }
-    
-    $scope.runContainer = function(image){
-        $("#errorMessage").hide();
-        if ($scope.imageTag[image] !== undefined) {
-            $("#imageList").css("pointer-events","none");
-        }
-        else {
-            $("#errorMessage").show();
-            $scope.errorMessage = "Please select a tag";
+            $scope.installDockerStatus = true;
+            new PNotify({
+                title: 'Failed to complete request',
+                type: 'error'
+            });
         }
     }
-  
-    $scope.loadTags = function(event){
-        var pagesloaded = $(event.target).data('pageloaded');
-        var image = event.target.id;
-        
-        if (!pagesloaded) {
-            $scope.tagList[image] = ['Loading...'];
-            $(event.target).data('pageloaded',1);
-        
-            populateTagList(image, pagesloaded);
-//             $("#"+image+" option:selected").prop("selected", false);
-        }
-    }
-    
-    $scope.selectTag = function(){
-        var image = event.target.id;
-        var selectedTag = $('#'+image).find(":selected").text();
-        
-        if (selectedTag == 'Load more') {
-            var pagesloaded = $(event.target).data('pageloaded');
-            $(event.target).data('pageloaded', pagesloaded+1);
-        
-            populateTagList(image, pagesloaded);
-        }
-    }
+});
 
+/* Java script code for docker management */
+var delayTimer = null;
+
+app.controller('dockerImages', function($scope,$http) {
+    $scope.tagList = [];
+    $scope.imageTag = {};
 });
 
 /* Java script code to install Container */
@@ -215,7 +88,7 @@ app.controller('runContainer', function($scope,$http) {
         var name = $scope.name;
         var tag = $scope.tag;
         var memory = $scope.memory;
-        var websiteOwner = $scope.websiteOwner;
+        var dockerOwner = $scope.dockerOwner;
         var image = $scope.image;
         var numberOfEnv = Object.keys($scope.envList).length;
 
@@ -223,7 +96,7 @@ app.controller('runContainer', function($scope,$http) {
             name: name,
             tag: tag,
             memory: memory,
-            websiteOwner: websiteOwner,
+            dockerOwner: dockerOwner,
             image: image,
             envList: $scope.envList
             
@@ -307,7 +180,7 @@ app.controller('listContainers', function($scope,$http) {
     $scope.submitAssignContainer = function(){
         url = "/docker/assignContainer";
 
-        var data = {name: $scope.assignActive, admin: $scope.websiteOwner};
+        var data = {name: $scope.assignActive, admin: $scope.dockerOwner};
 
         var config = {
             headers : {
@@ -383,6 +256,51 @@ app.controller('listContainers', function($scope,$http) {
                 if (response.data.delContainerStatus === 1) {
                     location.reload();
                 }
+                else if (response.data.delContainerStatus == 2) {
+                    (new PNotify({
+                        title: response.data.error_message,
+                        text: 'Delete anyway?',
+                        icon: 'fa fa-question-circle',
+                        hide: false,
+                        confirm: {
+                            confirm: true
+                        },
+                        buttons: {
+                            closer: false,
+                            sticker: false
+                        },
+                        history: {
+                            history: false
+                        }
+                    })).get().on('pnotify.confirm', function() {
+                        url = "/docker/delContainer";
+
+                        var data = {name: name, unlisted: unlisted, force: 1};
+
+                        var config = {
+                            headers : {
+                                'X-CSRFToken': getCookie('csrftoken')
+                            }
+                        };
+
+                        $http.post(url, data,config).then(ListInitialData, cantLoadInitialData);
+
+
+                        function ListInitialData(response) {
+                            if (response.data.delContainerStatus === 1) {
+                                location.reload();
+                            }
+                            else {
+                                $("#listFail").fadeIn();
+                                $scope.errorMessage = response.data.error_message;
+                            }
+                            $('#imageLoading').hide();
+                        }
+                        function cantLoadInitialData(response) {
+                            $('#imageLoading').hide();
+                        }
+                    })
+                }
                 else
                 {
                     $("#listFail").fadeIn();
@@ -392,7 +310,6 @@ app.controller('listContainers', function($scope,$http) {
             }
             function cantLoadInitialData(response) {
                 $('#imageLoading').hide();
-                $scope.logs = "Error loading log";
             }
         })
     }  
@@ -460,8 +377,8 @@ app.controller('listContainers', function($scope,$http) {
         if (response.data.listContainerStatus === 1) {
 
             var finalData = JSON.parse(response.data.data);
-            $scope.WebSitesList = finalData;
-            console.log($scope.WebSitesList);
+            $scope.ContainerList = finalData;
+            console.log($scope.ContainerList);
             $("#listFail").hide();
         }
         else
@@ -476,7 +393,7 @@ app.controller('listContainers', function($scope,$http) {
     }
 
 
-    $scope.getFurtherWebsitesFromDB = function(pageNumber) {
+    $scope.getFurtherContainersFromDB = function(pageNumber) {
 
     var config = {
         headers : {
@@ -496,7 +413,7 @@ app.controller('listContainers', function($scope,$http) {
         if (response.data.listContainerStatus ===1) {
 
             var finalData = JSON.parse(response.data.data);
-            $scope.WebSitesList = finalData;
+            $scope.ContainerList = finalData;
             $("#listFail").hide();
         }
         else
@@ -874,6 +791,199 @@ app.controller('viewContainer', function($scope,$http) {
 
 /* Java script code for docker image management */
 app.controller('manageImages', function($scope,$http) {
+   $scope.tagList = [];
+   $scope.showingSearch = false;
+   $("#searchResult").hide();
+    
+    $scope.pullImage = function(image, tag){
+        function ListInitialDatas(response) {
+            if (response.data.installImageStatus === 1)
+            {
+                new PNotify({
+                    title: 'Image pulled successfully',
+                    text: 'Reloading...',
+                    type: 'success'
+                });
+                location.reload()
+            }
+            else{
+                new PNotify({
+                    title: 'Failed to complete request',
+                    text: response.data.error_message,
+                    type: 'error'
+                });
+            }
+
+            $('#imageLoading').hide();
+
+        }
+        function cantLoadInitialDatas(response) {
+            $('#imageLoading').hide();
+            new PNotify({
+                title: 'Failed to complete request',
+                type: 'error'
+            });
+        }
+        if (image && tag){
+            $('#imageLoading').show();
+
+            url = "/docker/installImage";
+            var data = {
+                image: image,
+                tag: tag
+            };
+            var config = {
+                headers : {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            };
+
+            $http.post(url, data,config).then(ListInitialDatas, cantLoadInitialDatas);
+
+        }
+        else {
+            new PNotify({
+                    title: 'Unable to complete request',
+                    text: 'Please select a tag',
+                    type: 'info'
+                });
+        }
+        
+    }
+    
+   $scope.searchImages = function(){
+       console.log($scope.searchString);
+       if (!$scope.searchString){
+           $("#searchResult").hide();
+       }
+       else {
+           $("#searchResult").show();
+       }
+        clearTimeout(delayTimer);
+        delayTimer = setTimeout(function() {
+            $('#imageLoading').show();
+
+            url = "/docker/searchImage";
+            var data = {
+                string: $scope.searchString
+            };
+            var config = {
+                headers : {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            };
+
+            $http.post(url, data,config).then(ListInitialDatas, cantLoadInitialDatas);
+
+            function ListInitialDatas(response) {
+                if (response.data.searchImageStatus === 1)
+                {
+                    $scope.images = response.data.matches;
+                    console.log($scope.images)
+                }
+                else{
+                    new PNotify({
+                        title: 'Failed to complete request',
+                        text: response.data.error,
+                        type: 'error'
+                    });
+                }
+
+                $('#imageLoading').hide();
+
+            }
+            function cantLoadInitialDatas(response) {
+                $('#imageLoading').hide();
+                new PNotify({
+                    title: 'Failed to complete request',
+                    type: 'error'
+                });
+            }
+        }, 500);
+    } 
+   
+   function populateTagList(image, page){
+       $('imageLoading').show();
+        url = "/docker/getTags"
+        var data = {
+            image: image,
+            page: page+1
+        };
+
+        var config = {
+            headers : {
+                'X-CSRFToken': getCookie('csrftoken')
+                }
+            };
+       $http.post(url, data,config).then(ListInitialData, cantLoadInitialData);
+
+
+        function ListInitialData(response) {
+
+            if (response.data.getTagsStatus === 1) {
+                $scope.tagList[image].splice(-1,1);
+                $scope.tagList[image] = $scope.tagList[image].concat(response.data.list);
+
+                if (response.data.next != null){
+                    $scope.tagList[image].push("Load more");                
+                }
+            }
+            else
+            {
+                new PNotify({
+                    title: 'Unable to complete request',
+                    text: response.data.error_message,
+                    type: 'error'
+                });
+            }
+            $('#imageLoading').hide();
+        }
+        function cantLoadInitialData(response) {
+            new PNotify({
+                title: 'Unable to complete request',
+                text: response.data.error_message,
+                type: 'error'
+            });
+            $('#imageLoading').hide();
+        } 
+    }
+    
+    $scope.runContainer = function(image){
+        $("#errorMessage").hide();
+        if ($scope.imageTag[image] !== undefined) {
+            $("#imageList").css("pointer-events","none");
+        }
+        else {
+            $("#errorMessage").show();
+            $scope.errorMessage = "Please select a tag";
+        }
+    }
+  
+    $scope.loadTags = function(event){
+        var pagesloaded = $(event.target).data('pageloaded');
+        var image = event.target.id;
+        
+        if (!pagesloaded) {
+            $scope.tagList[image] = ['Loading...'];
+            $(event.target).data('pageloaded',1);
+        
+            populateTagList(image, pagesloaded);
+//             $("#"+image+" option:selected").prop("selected", false);
+        }
+    }
+    
+    $scope.selectTag = function(){
+        var image = event.target.id;
+        var selectedTag = $('#'+image).find(":selected").text();
+        
+        if (selectedTag == 'Load more') {
+            var pagesloaded = $(event.target).data('pageloaded');
+            $(event.target).data('pageloaded', pagesloaded+1);
+        
+            populateTagList(image, pagesloaded);
+        }
+    }
+    
    $scope.getHistory = function(counter){
        $('#imageLoading').show();
        var name = $("#"+counter).val()

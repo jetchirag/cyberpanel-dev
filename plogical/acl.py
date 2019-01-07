@@ -462,6 +462,22 @@ class ACLManager:
                     return 1
                 else:
                     return 0
+                
+    @staticmethod
+    def checkContainerOwnership(name, userID):
+        try:
+            container = Containers.objects.get(name=name)
+            currentACL = ACLManager.loadedACL(userID)
+            admin = Administrator.objects.get(pk=userID)
+            
+            if currentACL['admin'] == 1:
+                return 1
+            elif container.admin == admin:
+                return 1
+            else:
+                return 0
+        except:
+            return 0
 
     @staticmethod
     def executeCall(command):

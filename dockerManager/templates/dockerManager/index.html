@@ -36,7 +36,7 @@
                         </a>
                     </div>
                      <div class="col-md-4">
-                        <a href="{% url 'loadImages' %}" title="{% trans 'View images' %}" class="tile-box tile-box-shortcut btn-primary">
+                        <a href="{% url 'containerImage' %}" title="{% trans 'Create new container' %}" class="tile-box tile-box-shortcut btn-primary">
                             <div class="tile-header">
                                 {% trans "New Container" %}
                             </div>
@@ -46,9 +46,9 @@
                         </a>
                     </div>
                      <div class="col-md-4">
-                        <a href="{% url 'manageImages' %}" title="{% trans 'View images' %}" class="tile-box tile-box-shortcut btn-primary">
+                        <a href="{% url 'manageImages' %}" title="{% trans 'Manage Images' %}" class="tile-box tile-box-shortcut btn-primary">
                             <div class="tile-header">
-                                {% trans "List Images" %}
+                                {% trans "Manage Images" %}
                             </div>
                             <div class="tile-content-wrapper">
                                 <i class="glyph-icon icon-dashboard"></i>

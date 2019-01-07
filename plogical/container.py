@@ -28,12 +28,34 @@ import requests
 client = docker.from_env()
 dockerAPI = docker.APIClient()
 
-# Todo: Add check if docker is available/running
-
 class ContainerManager:
     def __init__(self, name = None):
         self.name = name
         
+    def submitInstallDocker(self, userID = None, data = None):
+        try:
+            currentACL = ACLManager.loadedACL(userID)
+            if ACLManager.currentContextPermission(currentACL, 'createContainer') == 0:
+                return ACLManager.loadError()
+            
+            command = 'yum install -y docker'
+            cmd = shlex.split(command)
+            res = subprocess.call(cmd)
+            
+            if res == 0:
+                data_ret = {'installDockerStatus': 1, 'error_message': 'None'}
+                json_data = json.dumps(data_ret)
+                return HttpResponse(json_data)
+            else:
+                data_ret = {'installDockerStatus': 0, 'error_message': 'Failed to install. Manual install required.'}
+                json_data = json.dumps(data_ret)
+                return HttpResponse(json_data)
+            
+            return HttpResponse(res)
+
+        except BaseException, msg:
+            return HttpResponse(str(msg))            
+            
     def createContainer(self, request = None, userID = None, data = None):
         try:
             currentACL = ACLManager.loadedACL(userID)
@@ -43,12 +65,10 @@ class ContainerManager:
             adminNames = ACLManager.loadAllUsers(userID)
             tag = request.GET.get('tag')
             image = request.GET.get('image')
-#             Todo: Add check if url is correct i.e. query exists
-            print "name:" + tag
             tag = tag.split(" (")[0]
             
             if "/" in image:
-                name = image.split("/")[0] + "." + image.split("/")[0]
+                name = image.split("/")[0] + "." + image.split("/")[1]
             else:
                 name = image
             
@@ -89,8 +109,11 @@ class ContainerManager:
             return HttpResponse(str(msg))
         
     def loadContainerHome(self, request = None, userID = None, data = None):
-        
         name = self.name
+                
+        if ACLManager.checkContainerOwnership(name, userID) != 1:
+            return ACLManager.loadError()
+        
         try:
             container = client.containers.get(name)
         except docker.errors.NotFound as err:
@@ -179,12 +202,10 @@ class ContainerManager:
 
     def getContainerLogs(self, userID = None, data = None):
         try:
-
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'createWebsite') == 0:
-                return ACLManager.loadErrorJson('createWebSiteStatus', 0)
-
             name = data['name']
+
+            if ACLManager.checkContainerOwnership(name, userID) != 1:
+                return ACLManager.loadError()
             
             container = client.containers.get(name)
             logs = container.logs()
@@ -209,7 +230,7 @@ class ContainerManager:
             name = data['name']
             image = data['image']
             tag = data['tag']
-            websiteOwner = data['websiteOwner']
+            dockerOwner = data['dockerOwner']
             memory = data['memory']
             envList = data['envList']
             
@@ -219,10 +240,8 @@ class ContainerManager:
             # Formatting envList for usage
             envDict = {}
             for key, value in envList.iteritems():
-                # Todo: Add proper filters and checks for each variable 
                 if (value['name'] != '') or (value['value'] != ''):
                     envDict[value['name']] = value['value']
-            print envDict
             
             if 'ExposedPorts' in inspectImage['Config']:
                 for item in inspectImage['Config']['ExposedPorts']:
@@ -234,18 +253,26 @@ class ContainerManager:
                     portConfig[item] = data[item]
             
             ## Create Configurations
-            
-            admin = Administrator.objects.get(userName=websiteOwner)
+            admin = Administrator.objects.get(userName=dockerOwner)
             
             containerArgs = {'image':image+":"+tag,
                             'detach':True,
                             'name':name,
                             'ports':portConfig,
+                             'publish_all_ports': True,
                             'environment':envDict}
             
             containerArgs['mem_limit'] = memory * 1048576; # Converts MB to bytes ( 0 * x = 0 for unlimited memory)
 
-            container = client.containers.run(**containerArgs)
+            try:
+                container = client.containers.create(**containerArgs)
+            except Exception as err:
+                if "port is already allocated" in  err: # We need to delete container if port is not available
+                    print "Deleting container"
+                    container.remove(force=True)
+                data_ret = {'createContainerStatus': 0, 'error_message': str(err)}
+                json_data = json.dumps(data_ret)
+                return HttpResponse(json_data)
             
             con = Containers(admin=admin,
                             name=name,
@@ -278,8 +305,6 @@ class ContainerManager:
             image = data['image']
             tag = data['tag']
             
-            print "Installing Image: " + image
-            
             try:
                 inspectImage =  dockerAPI.inspect_image(image+":"+tag)
                 data_ret = {'installImageStatus': 0, 'error_message': "Image already installed"}
@@ -309,50 +334,53 @@ class ContainerManager:
         
     def submitContainerDeletion(self, userID = None, data = None, called = False):
         try:
-
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
+            name = data['name']
+            if ACLManager.checkContainerOwnership(name, userID) != 1:
                 if called:
                     return 'Permission error'
                 else:
                     return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
 
-            name = data['name']
             unlisted = data['unlisted']
-            print unlisted
+            
+            if 'force' in data:
+                force = True
+            else:
+                force = False
 
             if not unlisted:
                 containerOBJ = Containers.objects.get(name=name)
             
-            try:
-                container = client.containers.get(name)
-            except docker.errors.NotFound as err:
-                if called:
-                    return 'Container does not exist'
-                else:
-                    data_ret = {'delContainerStatus': 0, 'error_message': 'Container does not exist'}
+            if not force:
+                try:
+                    container = client.containers.get(name)
+                except docker.errors.NotFound as err:
+                    if called:
+                        return 'Container does not exist'
+                    else:
+                        data_ret = {'delContainerStatus': 2, 'error_message': 'Container does not exist'}
+                        json_data = json.dumps(data_ret)
+                        return HttpResponse(json_data)                
+
+                try:
+                    container.stop() # Stop container
+                    container.kill() # INCASE graceful stop doesn't work
+                except:
+                    pass
+
+                try:
+                    container.remove() # Finally remove container                    
+                except docker.errors.APIError as err:
+                    data_ret = {'delContainerStatus': 0, 'error_message': str(err)}
                     json_data = json.dumps(data_ret)
                     return HttpResponse(json_data)                
-            
-            try:
-                container.stop() # Stop container
-                container.kill() # INCASE graceful stop doesn't work
-            except:
-                pass
-                        
-            try:
-                container.remove() # Finally remove container                    
-            except docker.errors.APIError as err:
-                data_ret = {'delContainerStatus': 0, 'error_message': str(err)}
-                json_data = json.dumps(data_ret)
-                return HttpResponse(json_data)                
-            except:
-                if called:
-                    return "Unknown"
-                else:
-                    data_ret = {'delContainerStatus': 0, 'error_message': 'Unknown error'}
-                    json_data = json.dumps(data_ret)
-                    return HttpResponse(json_data)
+                except:
+                    if called:
+                        return "Unknown"
+                    else:
+                        data_ret = {'delContainerStatus': 0, 'error_message': 'Unknown error'}
+                        json_data = json.dumps(data_ret)
+                        return HttpResponse(json_data)
                 
             if not unlisted and not called:
                 containerOBJ.delete()            
@@ -393,14 +421,14 @@ class ContainerManager:
         json_data = "["
         checker = 0
 
-        try:
-            ipFile = "/etc/cyberpanel/machineIP"
-            f = open(ipFile)
-            ipData = f.read()
-            ipAddress = ipData.split('\n', 1)[0]
-        except BaseException, msg:
-            logging.CyberCPLogFileWriter.writeToFile("Failed to read machine IP, error:" + str(msg))
-            ipAddress = "192.168.100.1"
+#         try:
+#             ipFile = "/etc/cyberpanel/machineIP"
+#             f = open(ipFile)
+#             ipData = f.read()
+#             ipAddress = ipData.split('\n', 1)[0]
+#         except BaseException, msg:
+#             logging.CyberCPLogFileWriter.writeToFile("Failed to read machine IP, error:" + str(msg))
+#             ipAddress = "192.168.100.1"
 
         for items in containers:
             dic = {'name': items.name,'admin': items.admin.userName, 'tag':items.tag, 'image':items.image}
@@ -418,11 +446,10 @@ class ContainerManager:
     def doContainerAction(self, userID = None, data = None):
         try:
 
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
-                return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
-
             name = data['name']
+            if ACLManager.checkContainerOwnership(name, userID) != 1:
+                return ACLManager.loadErrorJson('containerActionStatus',0)
+            
             action = data['action']
             try:
                 container = client.containers.get(name)
@@ -464,11 +491,10 @@ class ContainerManager:
 
     def getContainerStatus(self, userID = None, data = None):
         try:
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
-                return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
-
             name = data['name']
+            if ACLManager.checkContainerOwnership(name, userID) != 1:
+                return ACLManager.loadErrorJson('containerStatus',0)
+            
             try:
                 container = client.containers.get(name)
             except docker.errors.NotFound as err:
@@ -492,11 +518,10 @@ class ContainerManager:
         
     def exportContainer(self, request = None, userID = None, data = None):
         try:
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
-                return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
-            
             name = request.GET.get('name')
+            if ACLManager.checkContainerOwnership(name, userID) != 1:
+                return ACLManager.loadErrorJson('containerStatus',0)
+            
             try:
                 container = client.containers.get(name)
             except docker.errors.NotFound as err:
@@ -520,12 +545,9 @@ class ContainerManager:
                         
     def getContainerTop(self, userID = None, data = None):
         try:
-
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
-                return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
-
             name = data['name']
+            if ACLManager.checkContainerOwnership(name, userID) != 1:
+                return ACLManager.loadErrorJson('containerTopStatus',0)
             try:
                 container = client.containers.get(name)
             except docker.errors.NotFound as err:
@@ -555,15 +577,11 @@ class ContainerManager:
     
     def assignContainer(self, userID = None, data = None):
         try:
-
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'assignContainer') == 0:
-                return ACLManager.loadErrorJson('assignContainerStatus', 0)
-
+            # Todo: add check only for super user i.e. main admin
             name = data['name']
-            websiteOwner = data['admin']
+            dockerOwner = data['admin']
                 
-            admin = Administrator.objects.get(userName=websiteOwner)
+            admin = Administrator.objects.get(userName=dockerOwner)
             
             try:
                 container = client.containers.get(name)
@@ -590,29 +608,9 @@ class ContainerManager:
             data_ret = {'assignContainerStatus': 0, 'error_message': str(msg)}
             json_data = json.dumps(data_ret)
             return HttpResponse(json_data) 
-    
-    def dockerSettings(self, request = None, userID = None, data = None):
-        try:
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'createContainer') == 0:
-                return ACLManager.loadError()
-
-            adminNames = ACLManager.loadAllUsers(userID)
-            
-            Data = {}
-        
-            return render(request, 'dockerManager/dockerSettings.html', Data)
-
-        except BaseException, msg:
-            return HttpResponse(str(msg))
                 
     def searchImage(self, userID = None, data = None):
         try:
-
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
-                return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
-
             string = data['string']
             try:
                 matches = client.images.search(term=string)
@@ -643,16 +641,48 @@ class ContainerManager:
             json_data = json.dumps(data_ret)
             return HttpResponse(json_data)             
         
-        
-    def manageImages(self, request = None, userID = None, data = None):
+    def images(self, request = None, userID = None, data = None):
         try:
-            currentACL = ACLManager.loadedACL(userID)
-            containers = ACLManager.findAllContainers(currentACL, userID)
-                        
             try:
                 imageList = client.images.list()
             except docker.errors.APIError as err:
                 return HttpResponse(str(err))
+            
+            images = {}
+            names = []
+            
+            for image in imageList:
+                name = image.attrs['RepoTags'][0].split(":")[0]
+                if "/" in name:
+                    name2 = ""
+                    for item in name.split("/"):
+                        name2 += ":" + item
+                else:
+                    name2 = name
+                    
+                tags = []
+                for tag in image.tags:
+                    getTag = tag.split(":")
+                    if len(getTag) == 2:
+                        tags.append(getTag[1])
+                print tags                        
+                if name in names:
+                    images[name]['tags'].extend(tags)
+                else:
+                    names.append(name)
+                    images[name] = {"name":name,
+                                    "name2":name2,
+                                  "tags":tags}
+            print "======"
+            print images
+            return render(request, 'dockerManager/images.html', {"images":images, "test":'asds'})
+        
+        except BaseException, msg:
+            return HttpResponse(str(msg))
+    
+    def manageImages(self, request = None, userID = None, data = None):
+        try:
+            imageList = client.images.list()
             
             images = {}
             names = []
@@ -666,7 +696,6 @@ class ContainerManager:
                     tags = []
                     images[name] = {"name":name,
                                   "tags":image.tags}
-            print images
             return render(request, 'dockerManager/manageImages.html', {"images":images})
             
         except BaseException, msg:
@@ -674,10 +703,6 @@ class ContainerManager:
         
     def getImageHistory(self, userID = None, data = None):
         try:
-
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
-                return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
 
             name = data['name']
             try:
@@ -704,11 +729,6 @@ class ContainerManager:
         
     def removeImage(self, userID = None, data = None):
         try:
-
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
-                return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
-
             name = data['name']
             try:
                 if name == 0:
@@ -761,12 +781,13 @@ class ContainerManager:
                             'name':name,
                             'ports':port,
                             'environment':env,
+                            'publish_all_ports': True,
                             'mem_limit': memory * 1048576}
                         
             if con.startOnReboot == 1:
                 containerArgs['restart_policy'] = {"Name": "always"}
             
-            container = client.containers.run(**containerArgs)
+            container = client.containers.create(**containerArgs)
             con.cid = container.id
             con.save()
             
@@ -775,13 +796,11 @@ class ContainerManager:
             return str(msg)
         
     def saveContainerSettings(self, userID = None, data = None):
-        try:
-
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
-                return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
-
+        try:            
             name = data['name']
+            if ACLManager.checkContainerOwnership(name, userID) != 1:
+                return ACLManager.loadErrorJson('saveSettingsStatus',0)
+            
             memory = data['memory']
             startOnReboot = data['startOnReboot']
             envList = data['envList']
@@ -820,7 +839,6 @@ class ContainerManager:
                 # Formatting envList for usage
                 envDict = {}
                 for key, value in envList.iteritems():
-                    # Todo: Add proper filters and checks for each variable 
                     if (value['name'] != '') or (value['value'] != ''):
                         envDict[value['name']] = value['value']
                 
@@ -856,11 +874,9 @@ class ContainerManager:
                 
     def recreateContainer(self, userID = None, data = None):
         try:
-            currentACL = ACLManager.loadedACL(userID)
-            if ACLManager.currentContextPermission(currentACL, 'recreateContainer') == 0:
-                return ACLManager.loadErrorJson('recreateContainerStatus', 0)
-
             name = data['name']
+            if ACLManager.checkContainerOwnership(name, userID) != 1:
+                return ACLManager.loadErrorJson('saveSettingsStatus',0)
             
             try:
                 container = client.containers.get(name)
@@ -900,3 +916,28 @@ class ContainerManager:
             data_ret = {'recreateContainerStatus': 0, 'error_message': str(msg)}
             json_data = json.dumps(data_ret)
             return HttpResponse(json_data)  
+        
+    def getTags(self, userID = None, data = None):
+        try:
+            image = data['image']
+            page = data['page']
+
+            if ":" in image:
+                image2 = image.split(":")[0] + "/" + image.split(":")[1]
+            else:
+                image2 = "library/" + image
+
+            print image
+            registryData = requests.get('https://registry.hub.docker.com/v2/repositories/'+image2+'/tags', {'page':page}).json()
+
+            tagList = []
+            for tag in registryData['results']:
+                tagList.append(tag['name'])
+        
+            data_ret = {'getTagsStatus': 1, 'list': tagList, 'next':registryData['next'], 'error_message': None}
+            json_data = json.dumps(data_ret)
+            return HttpResponse(json_data) 
+        except BaseException, msg:
+            data_ret = {'getTagsStatus': 0, 'error_message': str(msg)}
+            json_data = json.dumps(data_ret)
+            return HttpResponse(json_data) 

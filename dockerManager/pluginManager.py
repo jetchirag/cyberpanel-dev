@@ -4,9 +4,9 @@ from plogical.pluginManagerGlobal import pluginManagerGlobal
 class pluginManager:
 
     @staticmethod
-    def preContainerCreation(request):
-        return pluginManagerGlobal.globalPlug(request, preContainerCreation)
+    def preDockerInstallation(request):
+        return pluginManagerGlobal.globalPlug(request, preDockerInstallation)
 
     @staticmethod
-    def postContainerCreation(request, response):
-        return pluginManagerGlobal.globalPlug(request, postContainerCreation, response)
+    def postDockerInstallation(request, response):
+        return pluginManagerGlobal.globalPlug(request, postDockerInstallation, response)

@@ -1,0 +1,123 @@
+{% extends "baseTemplate/index.html" %}
+{% load i18n %}
+{% block title %}{% trans "Docker Images - CyberPanel" %}{% endblock %}
+{% block content %}
+
+{% load static %}
+{% get_current_language as LANGUAGE_CODE %}
+<!-- Current language: {{ LANGUAGE_CODE }} -->
+
+
+<div class="container" ng-controller="dockerImages">
+
+    <div id="page-title">
+       <h2 id="domainNamePage">{% trans "List Images" %}</h2>
+       <p>{% trans "On this page you can launch, list docker containers." %}</p>
+    </div>
+
+{% if image %}
+    <div class="panel" id="installImagePanel" ng-show="showInstallImage" ng-init="showImageList=false">
+        <div class="panel-body">
+            <h3 class="title-hero">
+                {% trans "Download Image" %}
+                <img ng-show="installImageLoading" src="/static/images/loading.gif">
+            </h3>
+            <h4>{% trans "Image '" %}{{image}}:{{tag}}{% trans "' is not currently installed. Do you want to download it?" %}</h4>
+            
+            <br>
+            <button class="btn btn-info" ng-click="installImage('{{image}}','{{tag}}')">Download</button>
+            <button class="btn btn-info" ng-click="cancelInstall()">Cancel</button>
+            <br><br>
+            <div ng-show="installImageError" class="alert alert-danger">
+                <p>{$ imageErrorMessage $}</p>
+            </div>
+            <div ng-show="installImageSuccess" class="alert alert-success">
+                <p>{% trans "Image installed successful. Click button below to goto to container install page" %}</p>
+            </div>
+            <a ng-show="installImageSuccess" href="/docker/runContainer/?image={{image}}&tag={{tag}}" class="btn btn-primary">{% trans "Goto install page" %}</a>
+        </div>
+    </div>
+{% endif %}    
+    
+<div class="panel" ng-show="showImageList">
+    <div class="panel-body">
+        <h3 class="title-hero">
+            {% trans "Images" %} <img id="imageLoading" src="/static/images/loading.gif" style="display: none;">
+        </h3>
+        <div class="example-box-wrapper">
+                
+                <table cellpadding="0" cellspacing="0" border="0" class="table table-striped table-bordered" id="imageList">
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Tags</th>
+                    <th>Action</th>
+                </tr>
+                </thead>
+                <tbody>
+                    
+                                  
+                <tr ng-repeat="image in images track by $index">
+                    <td>
+                        <span ng-bind="image.name"></span>
+                        <span ng-show="image.is_official == true"><i class="fa fa-check-circle" title="{% trans 'Official image' %}"></i></span>
+                        <span><i class="fa fa-exclamation-circle" ng-attr-title="{$ image.description $}"></i></span>
+                        
+                    </td>
+                    <td>
+                        <select ng-focus="loadTags($event)" ng-click="selectTag()" ng-model="imageTag[image.name2]" ng-options="tag for tag in tagList[image.name2]" ng-attr-id="{$ image.name2 $}" data-pageloaded='0' class="form-control ng-pristine ng-valid ng-empty ng-touched">                      
+                        </select>
+                    </td>
+                    <td>
+                        <a ng-href="/docker/runContainer/?image={$ image.name $}&tag={$ imageTag[image.name2] $}" class="btn btn-primary">Install</a>
+                    </td>
+                </tr>
+                    
+<!--                <tr>
+                  <td>OLSWP</td>
+                  <td>
+                  <select ng-focus="loadTags($event)" ng-click="selectTag()" ng-model="imageTag['usmannasir:olswp']" ng-options="tag for tag in tagList['usmannasir:olswp']" id="usmannasir:olswp" data-pageloaded='0' class="form-control ng-pristine ng-valid ng-empty ng-touched">                      
+                  </select>
+                  </td>
+                  <td>
+                    <a ng-href="/docker/runContainer/?image=usmannasir/olswp&tag={$ imageTag['usmannasir:olswp'] $}" class="btn btn-primary">Install</a>
+                  </td>
+                </tr>                    -->
+
+                </tbody>
+                </table>
+
+        <div id="errorMessage" class="alert alert-danger">
+            <p>{$ errorMessage $}</p>
+        </div>
+
+            <div class="row">
+
+                            <div class="col-sm-4 col-sm-offset-8">
+
+                                <nav aria-label="Page navigation">
+                                      <ul class="pagination">
+
+
+                                            {% for items in pagination %}
+
+                                                <li ng-click="getFurtherWebsitesFromDB({{ forloop.counter }})" id="webPages"><a href="">{{ forloop.counter }}</a></li>
+
+                                            {% endfor %}
+
+                                      </ul>
+                                    </nav>
+
+
+                            </div>
+
+
+                        </div>
+
+        </div>
+    </div>
+</div>
+
+
+
+{% endblock %}

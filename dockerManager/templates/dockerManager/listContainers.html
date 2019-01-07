@@ -11,7 +11,9 @@
 <div class="container">
 
     <div id="page-title">
-       <h2 id="domainNamePage">{% trans "List Containers" %}</h2>
+       <h2 id="domainNamePage">{% trans "List Containers" %}
+        <a class="pull-right btn btn-primary" href="{% url "containerImage" %}">Create</a>
+       </h2>
        <p>{% trans "Manage containers on server" %}</p>
     </div>
 
@@ -35,7 +37,7 @@
                 </thead>
                 <tbody>
 
-                <tr ng-repeat="web in WebSitesList track by $index">
+                <tr ng-repeat="web in ContainerList track by $index">
                     <td ng-bind="web.name"></td>
                     <td><a href="/docker/view/{$ web.name $}"><img width="30px" height="30" class="center-block" src="{% static 'baseTemplate/assets/image-resources/webPanel.png' %}"></a></td>
                     <td ng-bind="web.admin"></td>
@@ -73,7 +75,7 @@
 </div>            
 
         <div id="listFail" class="alert alert-danger">
-            <p>{% trans "Cannot list websites. Error message:" %} {$ errorMessage $}</p>
+            <p>{% trans "Error message:" %} {$ errorMessage $}</p>
         </div>
 
             <div class="row">
@@ -86,7 +88,7 @@
 
                                             {% for items in pagination %}
 
-                                                <li ng-click="getFurtherWebsitesFromDB({{ forloop.counter }})" id="webPages"><a href="">{{ forloop.counter }}</a></li>
+                                                <li ng-click="getFurtherContainersFromDB({{ forloop.counter }})" id="webPages"><a href="">{{ forloop.counter }}</a></li>
 
                                             {% endfor %}
 
@@ -146,7 +148,7 @@
             <div ng-hide="installationDetailsForm" class="form-group">
                 <label class="col-sm-3 control-label">{% trans "Select Owner" %}</label>
                 <div class="col-sm-6">
-                    <select ng-model="websiteOwner" class="form-control">
+                    <select ng-model="dockerOwner" class="form-control">
                         {% for user in adminNames %}
                             <option>{{user}}</option>
                         {% endfor %}
